@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import type { NumericTuple } from '@flatten-js/interval-tree';
-import type { ErrorType } from './error-type';
 import IntervalTree from '@flatten-js/interval-tree';
 import { isRealNum } from '@univerjs/core';
+import type { ErrorType } from './error-type';
 import { normalizeTextForComparison } from '../engine/utils/compare';
 import { ERROR_TYPE_SET } from './error-type';
+
+type NumericTuple = [number, number];
 
 type ValueType = string | number | boolean;
 type ValueTypeWithNullUndefined = ValueType | null | undefined;
