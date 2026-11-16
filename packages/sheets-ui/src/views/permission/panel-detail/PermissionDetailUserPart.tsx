@@ -1,0 +1,250 @@
+/**
+ * Copyright 2023-present DreamNum Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Workbook } from '@univerjs/core';
+import type { ICollaborator } from '@univerjs/protocol';
+import {
+    IAuthzIoService,
+    IUniverInstanceService,
+    LocaleService,
+    UniverInstanceType,
+    UserManagerService,
+} from '@univerjs/core';
+import { borderClassName, Button, clsx, FormLayout, Radio, RadioGroup, Select } from '@univerjs/design';
+import { UnitRole } from '@univerjs/protocol';
+import { EditStateEnum, ViewStateEnum } from '@univerjs/sheets';
+import { IDialogService, useDependency, useEvent, useObservable, UserInfo } from '@univerjs/ui';
+import { useEffect } from 'react';
+import type { LocaleKey } from '../../../locale/types';
+import {
+    UNIVER_SHEET_PERMISSION_USER_DIALOG,
+    UNIVER_SHEET_PERMISSION_USER_DIALOG_ID,
+} from '../../../consts/permission';
+import { SheetPermissionUserManagerService } from '../../../services/permission/sheet-permission-user-list.service';
+
+export interface IPermissionDetailUserPartProps {
+    editState: EditStateEnum;
+    onEditStateChange: (v: EditStateEnum) => void;
+    viewState: ViewStateEnum;
+    onViewStateChange: (v: ViewStateEnum) => void;
+    permissionId: string;
+    SelectComponent?: typeof Select;
+    userListClassName?: string;
+}
+
+export const PermissionDetailUserPart = (props: IPermissionDetailUserPartProps) => {
+    const {
+        editState,
+        onEditStateChange,
+        viewState,
+        onViewStateChange,
+        permissionId,
+        SelectComponent = Select,
+        userListClassName,
+    } = props;
+    const localeService = useDependency(LocaleService);
+    const dialogService = useDependency(IDialogService);
+    const authzIoService = useDependency(IAuthzIoService);
+    const sheetPermissionUserManagerService = useDependency(SheetPermissionUserManagerService);
+    const userManagerService = useDependency(UserManagerService);
+    const univerInstanceService = useDependency(IUniverInstanceService);
+    const selectUserList = useObservable(
+        sheetPermissionUserManagerService.selectUserList$,
+        sheetPermissionUserManagerService.selectUserList
+    );
+
+    const workbook = univerInstanceService.getCurrentUnitOfType<Workbook>(UniverInstanceType.UNIVER_SHEET);
+    const worksheet = workbook?.getActiveSheet();
+    const unitId = workbook?.getUnitId() ?? '';
+    const handleEditStateChange = useEvent(onEditStateChange);
+
+    const handleAddPerson = async () => {
+        const userList = await authzIoService.listCollaborators({
+            objectID: unitId,
+            unitID: unitId,
+        });
+
+        const currentUser = userManagerService.getCurrentUser();
+        sheetPermissionUserManagerService.setCanEditUserList(userList.filter((user) => user.subject?.userID !== currentUser.userID));
+        dialogService.open({
+            id: UNIVER_SHEET_PERMISSION_USER_DIALOG_ID,
+            title: { title: localeService.t<LocaleKey>('sheets-ui.permission.panel.addPerson') },
+            children: { label: { name: UNIVER_SHEET_PERMISSION_USER_DIALOG, props: { unitId, objectId: permissionId } } },
+            width: 'auto',
+            closable: false,
+            onClose: () => dialogService.close(UNIVER_SHEET_PERMISSION_USER_DIALOG_ID),
+            className: 'sheet-permission-user-dialog',
+        });
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        if (permissionId && unitId) {
+            void authzIoService.listCollaborators({
+                objectID: permissionId,
+                unitID: unitId,
+            }).then((collaborators) => {
+                if (cancelled) {
+                    return;
+                }
+
+                const editors: ICollaborator[] = collaborators.filter((user) => user.role === UnitRole.Editor);
+                if (editors.length > 0) {
+                    handleEditStateChange(EditStateEnum.DesignedUserCanEdit);
+                }
+                sheetPermissionUserManagerService.setSelectUserList(editors);
+                sheetPermissionUserManagerService.setOldCollaboratorList(editors);
+            });
+        } else {
+            sheetPermissionUserManagerService.setSelectUserList([]);
+            sheetPermissionUserManagerService.setOldCollaboratorList([]);
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        authzIoService,
+        handleEditStateChange,
+        permissionId,
+        sheetPermissionUserManagerService,
+        unitId,
+    ]);
+
+    if (!workbook || !worksheet) {
+        return null;
+    }
+
+    return (
+        <>
+            <FormLayout
+                className="univer-font-medium"
+                label={localeService.t<LocaleKey>('sheets-ui.permission.panel.editPermission')}
+            >
+                <RadioGroup
+                    value={editState}
+                    onChange={(v) => onEditStateChange(v as EditStateEnum)}
+                    className="univer-flex univer-flex-col"
+                >
+                    <Radio value={EditStateEnum.OnlyMe}>
+                        <span>{localeService.t<LocaleKey>('sheets-ui.permission.panel.onlyICanEdit')}</span>
+                    </Radio>
+                    <Radio value={EditStateEnum.DesignedUserCanEdit}>
+                        <span>{localeService.t<LocaleKey>('sheets-ui.permission.panel.designedUserCanEdit')}</span>
+                    </Radio>
+                </RadioGroup>
+            </FormLayout>
+            {editState === EditStateEnum.DesignedUserCanEdit && (
+                <div
+                    className={clsx(`
+                      univer-mb-2 univer-box-border univer-flex univer-flex-col univer-overflow-y-auto univer-rounded-lg
+                      univer-p-3
+                    `, selectUserList?.length ? 'univer-h-[270px]' : 'univer-h-44', borderClassName, userListClassName)}
+                >
+                    <div className="univer-flex univer-items-center univer-justify-between univer-text-sm">
+                        <span>{localeService.t<LocaleKey>('sheets-ui.permission.panel.designedPerson')}</span>
+                        <Button variant="link" className="univer-h-auto univer-p-0" onClick={handleAddPerson}>
+                            {localeService.t<LocaleKey>('sheets-ui.permission.panel.addPerson')}
+                        </Button>
+                    </div>
+                    <div className="univer-my-2 univer-h-px univer-bg-gray-200" />
+                    <div className="univer-flex univer-flex-1 univer-flex-col">
+                        {selectUserList?.length > 0
+                            ? selectUserList.map((item) => {
+                                const user = { userId: item.subject?.userID || item.id, name: item.subject?.name, avatar: item.subject?.avatar };
+                                const context = { scene: 'permission-member' as const, unitId, subUnitId: worksheet?.getSheetId(), objectId: permissionId };
+                                return (
+                                    <div
+                                        key={item.subject?.userID}
+                                        className={`
+                                          univer-mb-3 univer-flex univer-h-7 univer-items-center univer-leading-7
+                                          last:univer-mb-0
+                                        `}
+                                    >
+                                        <UserInfo part="avatar" user={user} context={context} />
+                                        <span
+                                            className={`
+                                              univer-ml-1.5 univer-w-[130px] univer-truncate univer-text-gray-900
+                                              dark:!univer-text-gray-0
+                                            `}
+                                        >
+                                            <UserInfo part="name" user={user} context={context} />
+                                        </span>
+                                        <SelectComponent
+                                            className="!univer-w-[90px] univer-min-w-0 univer-cursor-pointer"
+                                            borderless
+                                            value="edit"
+                                            options={[
+                                                {
+                                                    label: `${localeService.t<LocaleKey>('sheets-ui.permission.panel.canEdit')}`,
+                                                    value: 'edit',
+                                                },
+                                                {
+                                                    label: `${localeService.t<LocaleKey>('sheets-ui.permission.panel.delete')}`,
+                                                    value: 'delete',
+                                                },
+                                            ]}
+                                            onChange={(v) => {
+                                                if (v === 'delete') {
+                                                    sheetPermissionUserManagerService.setSelectUserList(selectUserList.filter((i) => i.subject?.userID !== item.subject?.userID));
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                );
+                            })
+                            : (
+                                <div
+                                    className={`
+                                      univer-flex univer-min-h-24 univer-flex-1 univer-items-center
+                                      univer-justify-center univer-px-2 univer-text-center
+                                    `}
+                                >
+                                    <p
+                                        className={`
+                                          univer-m-0 univer-max-w-60 univer-text-sm univer-text-gray-500
+                                          dark:!univer-text-gray-200
+                                        `}
+                                    >
+                                        {localeService.t<LocaleKey>('sheets-ui.permission.dialog.userEmpty')}
+                                    </p>
+                                </div>
+                            )}
+                    </div>
+
+                </div>
+            )}
+            <FormLayout className="univer-font-medium" label={localeService.t<LocaleKey>('sheets-ui.permission.panel.viewPermission')}>
+                <RadioGroup
+                    value={viewState}
+                    onChange={(v) => onViewStateChange(v as ViewStateEnum)}
+                    className={`
+                      univer-flex univer-flex-col
+                      last:univer-mb-0
+                    `}
+                >
+                    <Radio value={ViewStateEnum.OthersCanView}>
+                        <span>{localeService.t<LocaleKey>('sheets-ui.permission.panel.othersCanView')}</span>
+                    </Radio>
+                    <Radio value={ViewStateEnum.NoOneElseCanView}>
+                        <span>{localeService.t<LocaleKey>('sheets-ui.permission.panel.noOneElseCanView')}</span>
+                    </Radio>
+                </RadioGroup>
+            </FormLayout>
+        </>
+    );
+};

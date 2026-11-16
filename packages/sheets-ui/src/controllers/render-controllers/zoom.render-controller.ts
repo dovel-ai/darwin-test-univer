@@ -1,0 +1,141 @@
+/**
+ * Copyright 2023-present DreamNum Co., Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Workbook } from '@univerjs/core';
+import type { IRenderContext, IRenderModule, IWheelEvent } from '@univerjs/engine-render';
+import {
+    BooleanNumber,
+    Disposable,
+    DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY,
+    FOCUSING_SHEET,
+    ICommandService,
+    IContextService,
+    Inject,
+    Optional,
+    SheetTypes,
+} from '@univerjs/core';
+import { getNextWheelZoomRatio } from '@univerjs/engine-render';
+import { merge } from 'rxjs';
+import { SetZoomRatioCommand } from '../../commands/commands/set-zoom-ratio.command';
+import { SHEET_ZOOM_RANGE } from '../../common/keys';
+import { IEditorBridgeService } from '../../services/editor-bridge.service';
+import { SheetSkeletonManagerService } from '../../services/sheet-skeleton-manager.service';
+import { getSheetObject } from '../utils/component-tools';
+
+/**
+ * Zoom render controller, registered in a render module.
+ */
+export class SheetsZoomRenderController extends Disposable implements IRenderModule {
+    constructor(
+        private readonly _context: IRenderContext<Workbook>,
+        @Inject(SheetSkeletonManagerService) private readonly _sheetSkeletonManagerService: SheetSkeletonManagerService,
+        @ICommandService private readonly _commandService: ICommandService,
+        @IContextService private readonly _contextService: IContextService,
+        @Optional(IEditorBridgeService) private readonly _editorBridgeService?: IEditorBridgeService
+    ) {
+        super();
+
+        this._initWorksheetListener();
+        this._initZoomEventListener();
+    }
+
+    updateZoom(worksheetId: string, zoomRatio: number, zoomToFit?: BooleanNumber): boolean {
+        const worksheet = this._context.unit.getSheetBySheetId(worksheetId);
+        if (!worksheet) {
+            return false;
+        }
+
+        const sheetConfig = worksheet.getConfig();
+        const isChartSheet = sheetConfig.type === SheetTypes.CHART;
+        if (isChartSheet) {
+            sheetConfig.zoomToFit = zoomToFit ?? BooleanNumber.FALSE;
+        }
+
+        const nextZoomRatio = isChartSheet && zoomToFit === BooleanNumber.TRUE
+            ? Math.min(SHEET_ZOOM_RANGE[1], Math.max(SHEET_ZOOM_RANGE[0], zoomRatio * 100)) / 100
+            : zoomRatio;
+        sheetConfig.zoomRatio = nextZoomRatio;
+        if (worksheet === this._context.unit.getActiveSheet()) {
+            this._updateViewZoom(nextZoomRatio);
+        }
+
+        return true;
+    }
+
+    private _initZoomEventListener() {
+        const scene = getSheetObject(this._context.unit, this._context)!.scene;
+
+        this.disposeWithMe(
+            // hold ctrl & mousewheel ---> zoom
+            scene.onMouseWheel$.subscribeEvent((e: IWheelEvent) => {
+                if (!e.ctrlKey || !this._contextService.getContextValue(FOCUSING_SHEET)) {
+                    return;
+                }
+
+                if (this._editorBridgeService) {
+                    const state = this._editorBridgeService.isVisible();
+                    if ((state.unitId === this._context.unitId || state.unitId === DOCS_FORMULA_BAR_EDITOR_UNIT_ID_KEY) && state.visible) {
+                        return;
+                    }
+                }
+
+                const workbook = this._context.unit;
+                const sheet = workbook.getActiveSheet();
+                if (!sheet) {
+                    return;
+                }
+
+                const currentRatio = sheet.getZoomRatio();
+                const nextRatio = getNextWheelZoomRatio(currentRatio, e);
+
+                this._commandService.executeCommand(SetZoomRatioCommand.id, {
+                    zoomRatio: nextRatio,
+                    unitId: workbook.getUnitId(),
+                    subUnitId: sheet.getSheetId(),
+                });
+
+                e.preventDefault();
+            })
+        );
+    }
+
+    private _zoom: number;
+    private _initWorksheetListener() {
+        this.disposeWithMe(merge(this._context.unit.activeSheet$, this._sheetSkeletonManagerService.currentSkeleton$).subscribe(() => {
+            const worksheet = this._context.unit.getActiveSheet();
+            if (!worksheet) {
+                return;
+            }
+
+            const zoomRatio = worksheet.getZoomRatio() || 1;
+            if (this._zoom !== zoomRatio) {
+                this._updateViewZoom(zoomRatio);
+            }
+        }));
+    }
+
+    /**
+     * Triggered when zoom and switch sheet.
+     * @param zoomRatio
+     */
+    private _updateViewZoom(zoomRatio: number) {
+        this._zoom = zoomRatio;
+
+        const sheetObject = getSheetObject(this._context.unit, this._context)!;
+        sheetObject?.scene.scale(zoomRatio, zoomRatio);
+        sheetObject?.spreadsheet.makeForceDirty();
+    }
+}
