@@ -27,7 +27,7 @@ env:
 jobs:
     test-shard:
         name: test shard (${{ matrix.shard-index }}/${{ matrix.shard-total }})
-        if: github.repository == 'dream-num/univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+        if: github.repository == 'dovel-ai/darwin-test-univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
         runs-on: ubuntu-latest
         timeout-minutes: 15
         strategy:
@@ -59,7 +59,7 @@ jobs:
 
     test:
         name: test
-        if: always() && github.repository == 'dream-num/univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+        if: always() && github.repository == 'dovel-ai/darwin-test-univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
         runs-on: minimum-runner
         timeout-minutes: 5
         needs: test-shard
@@ -75,7 +75,7 @@ jobs:
                   echo "All test shards passed"
 
     eslint:
-        if: github.repository == 'dream-num/univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+        if: github.repository == 'dovel-ai/darwin-test-univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
         runs-on: ubuntu-latest
         timeout-minutes: 10
 
@@ -108,7 +108,7 @@ jobs:
                   key: eslint-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'eslint.config.ts') }}-${{ github.sha }}
 
     typecheck:
-        if: github.repository == 'dream-num/univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
+        if: github.repository == 'dovel-ai/darwin-test-univer' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
         runs-on: ubuntu-latest
         timeout-minutes: 15
         env:
