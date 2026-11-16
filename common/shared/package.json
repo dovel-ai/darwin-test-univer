@@ -52,7 +52,7 @@
     "devDependencies": {
         "@univerjs/icons": "1.47.0",
         "@univerjs/icons-svg": "^1.47.0",
-        "tsrs": "0.23.0-ts7.1.0-beta",
+        "tsrs": "0.25.0-ts7.1.0-beta",
         "typescript": "^6.0.3",
         "vue-tsc": "^3.3.14"
     }
