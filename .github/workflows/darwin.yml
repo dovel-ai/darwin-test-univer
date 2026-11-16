@@ -1,0 +1,35 @@
+# Darwin finds the dependency and API changes this repository is behind on,
+# tests each one with this repository's own checks, and proposes it as a
+# draft pull request a person reviews. It never merges.
+#
+# Darwin starts this workflow itself (the schedule is set in the console), so
+# it has no trigger of its own besides a manual run. The job that runs this
+# repository's code holds no write token: pull requests are opened by a
+# separate job with a short-lived token Darwin issues for this repository only.
+name: Darwin
+# Darwin starts runs with its run id; the title is how Darwin knows which run is which.
+run-name: ${{ inputs.darwin-run && format('Darwin {0}', inputs.darwin-run) || 'Darwin' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      darwin-run:
+        description: The Darwin run this belongs to (Darwin fills it in)
+        type: string
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: darwin
+  cancel-in-progress: false
+
+jobs:
+  darwin:
+    uses: dovel-ai/darwin/.github/workflows/darwin.yml@1bce7600436e9664e67c5d64734a2c5da7f79eb2
+    permissions:
+      contents: read # Darwin's jobs check out this repository, read-only
+      id-token: write # each job proves itself to Darwin; no Darwin secret is stored here
+    with:
+      darwin-run: ${{ inputs.darwin-run }}
+      darwin-api: https://api.staging.dovellabs.si
