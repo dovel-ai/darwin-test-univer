@@ -190,7 +190,7 @@ export async function readOleFile(file: IOleFile, io?: IOleAttachmentIo, signal?
     }
     const hash = globalThis.crypto?.subtle
         ? new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>))
-        : (await import('@noble/hashes/sha256')).sha256(bytes);
+        : (await import('@noble/hashes/sha2.js')).sha256(bytes);
     if (signal?.aborted) {
         throw new Error('OLE request aborted');
     }
