@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   darwin:
-    uses: dovel-ai/darwin/.github/workflows/darwin.yml@64fba3de79b25fbbf2429fa9bc1902239a77aa85
+    uses: dovel-ai/darwin/.github/workflows/darwin.yml@23d8f283aed234892f42f78c6db8222c448086e6
     permissions:
       contents: read # Darwin's jobs check out this repository, read-only
       id-token: write # each job proves itself to Darwin; no Darwin secret is stored here
