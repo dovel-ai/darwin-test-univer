@@ -17,6 +17,7 @@ overrides:
     '@types/react-dom': 19.3.0
     react: 19.3.0
     react-dom: 19.3.0
+    source-map-js: 1.2.2
 minimumReleaseAgeExclude:
     - '@amamo/*'
     - '@univerjs/*'
