@@ -17,6 +17,7 @@ overrides:
     '@types/react-dom': 19.3.0
     react: 19.3.0
     react-dom: 19.3.0
+    rollup: 4.59.0
 minimumReleaseAgeExclude:
     - '@amamo/*'
     - '@univerjs/*'
