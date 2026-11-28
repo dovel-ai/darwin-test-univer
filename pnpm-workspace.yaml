@@ -17,6 +17,7 @@ overrides:
     '@types/react-dom': 19.3.0
     react: 19.3.0
     react-dom: 19.3.0
+    tinypool: 2.1.2
 minimumReleaseAgeExclude:
     - '@amamo/*'
     - '@univerjs/*'
